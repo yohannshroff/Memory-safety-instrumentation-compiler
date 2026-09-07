@@ -1,0 +1,25 @@
+# Build output
+build/
+cmake-build-*/
+
+# Object files / libraries / plugins
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+
+# LLVM IR / bitcode artifacts
+*.ll
+*.bc
+
+# Compiled benchmark binaries
+benchmarks/**/*.out
+benchmarks/**/*.bin
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

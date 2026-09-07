@@ -1,0 +1,10 @@
+#include <stdlib.h>
+int main(void) {
+    int *p = malloc(4 * sizeof(int));
+    if (!p) return 1;
+    int *q = p + 2;
+    *q = 7;                 // valid
+    *(p + 4) = 9;           // OOB
+    free(p);
+    return 0;
+}

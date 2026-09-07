@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    env:
+      LLVM_VERSION: "18"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM / Clang / CMake
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            llvm-${LLVM_VERSION} \
+            llvm-${LLVM_VERSION}-dev \
+            llvm-${LLVM_VERSION}-tools \
+            clang-${LLVM_VERSION} \
+            cmake ninja-build
+
+      - name: Configure
+        run: >
+          cmake -B build -G Ninja
+          -DLLVM_DIR="/usr/lib/llvm-${LLVM_VERSION}/lib/cmake/llvm"
+          -DCMAKE_C_COMPILER="clang-${LLVM_VERSION}"
+          -DCMAKE_CXX_COMPILER="clang++-${LLVM_VERSION}"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Runtime unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Benchmark suite
+        env:
+          MEMSAFE_CLANG: "clang-18"
+          MEMSAFE_OPT: "opt-18"
+        run: ./benchmarks/run_all.sh

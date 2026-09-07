@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+#
+# memsafec - the project's "compiler" front end.
+#
+#   memsafec [options] input.c -o output_binary
+#
+# Pipeline:
+#   1. clang -S -emit-llvm -g -O0 input.c        -> textual LLVM IR
+#   2. opt  -load-pass-plugin <plugin> -passes=memsafety   -> instrumented IR
+#   3. clang <instrumented.ll> <runtime .a>      -> linked executable
+#
+# Options:
+#   -o FILE     output binary path (required)
+#   -v          echo each underlying command
+#   --no-instrument   skip step 2 (produces an uninstrumented baseline build)
+#   --emit-ll DIR     also copy the intermediate .ll files into DIR
+#   -h, --help  show this help
+#
+# Configuration via environment (sensible defaults assume a sibling build/):
+#   MEMSAFE_PLUGIN   path to libMemSafety.so / .dylib
+#   MEMSAFE_RT       path to libmemsafety_runtime.a
+#   MEMSAFE_CLANG    clang to use          (default: llvm bin clang, else PATH)
+#   MEMSAFE_OPT      opt to use            (default: llvm bin opt,   else PATH)
+#
+set -euo pipefail
+
+die() { echo "memsafec: $*" >&2; exit 1; }
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$here/.." && pwd)"
+build="$repo/build"
+
+# --- locate the LLVM tools --------------------------------------------------
+llvm_bin=""
+if command -v brew >/dev/null 2>&1; then
+  p="$(brew --prefix llvm 2>/dev/null || true)"
+  [ -n "$p" ] && [ -x "$p/bin/opt" ] && llvm_bin="$p/bin"
+fi
+CLANG="${MEMSAFE_CLANG:-${llvm_bin:+$llvm_bin/}clang}"
+OPT="${MEMSAFE_OPT:-${llvm_bin:+$llvm_bin/}opt}"
+command -v "$CLANG" >/dev/null 2>&1 || die "clang not found ($CLANG); set MEMSAFE_CLANG"
+command -v "$OPT"   >/dev/null 2>&1 || die "opt not found ($OPT); set MEMSAFE_OPT"
+
+# --- locate plugin + runtime ---------------------------------------------
+find_plugin() {
+  [ -n "${MEMSAFE_PLUGIN:-}" ] && { echo "$MEMSAFE_PLUGIN"; return; }
+  for f in "$build/src/libMemSafety.so" "$build/src/libMemSafety.dylib"; do
+    [ -f "$f" ] && { echo "$f"; return; }
+  done
+  echo ""
+}
+RT="${MEMSAFE_RT:-$build/runtime/libmemsafety_runtime.a}"
+
+# --- parse args --------------------------------------------------------
+input=""
+output=""
+verbose=0
+instrument=1
+emit_ll_dir=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o)             output="${2:-}"; shift 2 ;;
+    -v)             verbose=1; shift ;;
+    --no-instrument) instrument=0; shift ;;
+    --emit-ll)      emit_ll_dir="${2:-}"; shift 2 ;;
+    -h|--help)      sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*)             die "unknown option: $1" ;;
+    *)              [ -z "$input" ] || die "multiple inputs given"; input="$1"; shift ;;
+  esac
+done
+
+[ -n "$input" ]  || die "no input file"
+[ -f "$input" ]  || die "input not found: $input"
+[ -n "$output" ] || die "no output file (-o FILE)"
+
+run() { [ "$verbose" -eq 1 ] && echo "+ $*" >&2; "$@"; }
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+raw_ll="$tmp/raw.ll"
+final_ll="$raw_ll"
+
+# 1. C -> IR
+run "$CLANG" -S -emit-llvm -g -O0 -Wno-everything "$input" -o "$raw_ll"
+
+# 2. IR -> instrumented IR
+if [ "$instrument" -eq 1 ]; then
+  plugin="$(find_plugin)"
+  [ -n "$plugin" ] || die "instrumentation plugin not found; build the project or set MEMSAFE_PLUGIN"
+  [ -f "$RT" ]     || die "runtime library not found: $RT (build the project or set MEMSAFE_RT)"
+  inst_ll="$tmp/instrumented.ll"
+  run "$OPT" -load-pass-plugin "$plugin" -passes=memsafety -S "$raw_ll" -o "$inst_ll"
+  final_ll="$inst_ll"
+fi
+
+# 3. IR -> executable
+if [ "$instrument" -eq 1 ]; then
+  run "$CLANG" -g -O0 "$final_ll" "$RT" -o "$output"
+else
+  run "$CLANG" -g -O0 "$final_ll" -o "$output"
+fi
+
+if [ -n "$emit_ll_dir" ]; then
+  mkdir -p "$emit_ll_dir"
+  base="$(basename "${input%.c}")"
+  cp "$raw_ll" "$emit_ll_dir/$base.raw.ll"
+  [ "$instrument" -eq 1 ] && cp "$final_ll" "$emit_ll_dir/$base.instrumented.ll"
+fi
+
+[ "$verbose" -eq 1 ] && echo "memsafec: wrote $output" >&2
+exit 0
