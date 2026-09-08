@@ -18,6 +18,10 @@ cmake-build-*/
 benchmarks/**/*.out
 benchmarks/**/*.bin
 
+# Local project-context files (kept on disk, not version-controlled)
+CLAUDE.md
+IMPLEMENTATION_PLAN.md
+
 # Editor / OS
 .DS_Store
 .idea/
