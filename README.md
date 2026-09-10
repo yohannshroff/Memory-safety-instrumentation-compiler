@@ -30,12 +30,24 @@ or Valgrind. See [Known Limitations](#known-limitations).
 
 ## Build
 
+One command (auto-detects Homebrew LLVM on macOS, LLVM on `PATH` elsewhere):
+
+```bash
+./build.sh            # configure + build + run unit tests
+./build.sh --bench    # also run the end-to-end benchmark suite
+./build.sh --clean    # wipe build/ first
+```
+
+Or drive CMake directly:
+
 ```bash
 cmake -B build                     # Linux, LLVM on PATH
 #   macOS / Homebrew LLVM:
 # cmake -B build -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 cmake --build build
 ```
+
+CMake presets are also provided (`cmake --preset macos-brew` / `--preset default`).
 
 Artifacts:
 

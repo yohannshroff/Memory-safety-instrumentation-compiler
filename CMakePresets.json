@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 19, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "LLVM on PATH (Linux / CI)",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "macos-brew",
+      "displayName": "Homebrew LLVM (Apple Silicon)",
+      "inherits": "default",
+      "cacheVariables": {
+        "LLVM_DIR": "/opt/homebrew/opt/llvm/lib/cmake/llvm",
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default" },
+    { "name": "macos-brew", "configurePreset": "macos-brew" }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "macos-brew",
+      "configurePreset": "macos-brew",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
