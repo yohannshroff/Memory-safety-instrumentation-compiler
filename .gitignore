@@ -23,6 +23,16 @@ CLAUDE.md
 IMPLEMENTATION_PLAN.md
 REPORT_CONTEXT.md
 
+# Course-review-cycle admin docs (kept on disk, not part of the tracked repo)
+docs/Review2_Slides.pptx
+docs/review2_slides.md
+docs/review2_progress.md
+docs/contribution_matrix.md
+docs/defect_log.md
+docs/progress_tracker.md
+docs/review1_corrections.md
+docs/review2_timeline.md
+
 # Editor / OS
 .DS_Store
 .idea/
