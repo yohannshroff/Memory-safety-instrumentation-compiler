@@ -1,8 +1,9 @@
 //===- CheckInjector.h - insert runtime check calls into the IR ----------===//
 //
 // CheckInjector owns the declarations of the runtime entry points and rewrites
-// the IR: it inserts boundscheck / ptrcheck calls in front of guarded memory
-// operations and heap_register / heap_release calls around heap calls.
+// the IR: it inserts boundscheck / heap_boundscheck / ptrcheck calls in front
+// of guarded memory operations and heap_register / heap_release calls around
+// heap calls.
 //
 //===--------------------------------------------------------------------===//
 #ifndef MEMSAFETY_CHECKINJECTOR_H
@@ -27,6 +28,7 @@ public:
 
   // Returns true if any IR was modified.
   bool injectArrayAccess(const ArrayAccess &AA);
+  bool injectHeapPtrAccess(const HeapPtrAccess &HA);
   bool injectPtrDeref(const PtrDeref &PD);
   bool injectHeapCall(const HeapCall &HC);
 
@@ -37,6 +39,7 @@ private:
   llvm::LLVMContext &Ctx;
 
   llvm::FunctionCallee BoundsCheckFn;
+  llvm::FunctionCallee HeapBoundsCheckFn;
   llvm::FunctionCallee PtrCheckFn;
   llvm::FunctionCallee HeapRegisterFn;
   llvm::FunctionCallee HeapReleaseFn;

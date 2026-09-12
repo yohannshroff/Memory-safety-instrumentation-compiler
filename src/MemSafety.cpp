@@ -37,7 +37,7 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
     memsafety::CheckInjector Injector(M);
 
-    unsigned NumBounds = 0, NumPtr = 0, NumHeap = 0;
+    unsigned NumBounds = 0, NumHeapBounds = 0, NumPtr = 0, NumHeap = 0;
     bool Changed = false;
 
     for (Function &F : M) {
@@ -51,6 +51,10 @@ public:
         Changed |= Injector.injectArrayAccess(AA);
         ++NumBounds;
       }
+      for (const auto &HA : Scanner.heapPtrAccesses()) {
+        Changed |= Injector.injectHeapPtrAccess(HA);
+        ++NumHeapBounds;
+      }
       for (const auto &PD : Scanner.ptrDerefs()) {
         Changed |= Injector.injectPtrDeref(PD);
         ++NumPtr;
@@ -63,8 +67,9 @@ public:
 
     if (std::getenv("MEMSAFE_VERBOSE")) {
       errs() << "[memsafety] " << M.getName() << ": " << NumBounds
-             << " bounds checks, " << NumPtr << " pointer checks, " << NumHeap
-             << " heap ops instrumented\n";
+             << " bounds checks, " << NumHeapBounds
+             << " heap-offset checks, " << NumPtr << " pointer checks, "
+             << NumHeap << " heap ops instrumented\n";
     }
 
     return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();

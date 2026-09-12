@@ -21,7 +21,7 @@ flowchart LR
 
 | Unit | Responsibility | In | Out |
 |---|---|---|---|
-| `IRScanner` | Walk a `Function`, classify memory operations into work lists | `llvm::Function&` | `ArrayAccess[]`, `PtrDeref[]`, `HeapCall[]` |
+| `IRScanner` | Walk a `Function`, classify memory operations into work lists | `llvm::Function&` | `ArrayAccess[]`, `HeapPtrAccess[]`, `PtrDeref[]`, `HeapCall[]` |
 | `CheckInjector` | Declare runtime entry points; insert guard calls via `IRBuilder` | a work-list item | mutated IR |
 | `MemSafety` | New-PM plugin registration; drives Scanner → Injector per function | `llvm::Module&` | `PreservedAnalyses` |
 
@@ -31,8 +31,15 @@ Detection rules:
   base object is an `alloca`/`GlobalVariable` of `ArrayType` with a static
   length. Emits `boundscheck(base, elem_size, len, index, loc)` before the
   access.
+- **Heap pointer access** — a `load`/`store` through a single-index
+  `getelementptr` whose base is *not* a known-length array (candidate heap
+  pointer + runtime offset, e.g. `p[i]` or `*(p + k)`). Emits
+  `heap_boundscheck(gep_base, byte_offset, access_size, loc)` before the
+  access; the runtime resolves whether `gep_base` is actually a tracked heap
+  allocation (see `docs/design_notes.md`).
 - **Pointer dereference** — any other `load`/`store` whose pointer operand is
   not a direct `alloca`/global. Emits `ptrcheck(ptr, loc)` before the access.
+  (Heap-pointer accesses get both this *and* the heap-offset check above.)
 - **Heap call** — a direct call to `malloc`/`calloc` (emit `heap_register`
   after) or `free` (emit `heap_release` before). `realloc` is recognised and
   skipped.
@@ -49,7 +56,11 @@ Plain C, no LLVM dependency, built as `libmemsafety_runtime.a`.
 - `heap_register` / `heap_release` — insert / mark-freed; a release of an
   unknown pointer is *invalid free*, of an already-freed pointer *double free*.
   Freed entries are retained so `ptrcheck` can still see *use-after-free*.
-- `boundscheck` — range-checks `index` against `[0, len)`.
+- `boundscheck` — range-checks `index` against `[0, len)` for a compile-time
+  known array length.
+- `heap_boundscheck` — looks the base pointer up in the allocation table; if
+  found, range-checks `[byte_offset, byte_offset+access_size)` against the
+  recorded allocation size. If not found, no-op (nothing provable).
 - `ptrcheck` — NULL → *null dereference*; freed table entry → *use-after-free*.
 - `report_violation` — prints `[VIOLATION] <type> at <loc>, addr=<addr>` to
   stderr and `abort()`s (exit 134). Chosen over `exit(1)` so the pass/fail
@@ -65,5 +76,6 @@ runtime paths default to `build/` and are overridable via `MEMSAFE_PLUGIN` /
 
 `safe/` (must run clean) and `unsafe/` (must be detected). `run_all.sh` builds
 each with `memsafec`, checks exit code + stderr against the expected-result
-table, and prints a pass/fail/xfail summary. `XFAIL` rows are documented
-limitations and do not fail the suite.
+table, and prints a pass/fail/xfail summary. `XFAIL` rows would be documented
+limitations that don't fail the suite; as of Review 2 the corpus has none —
+all 12 benchmarks pass against their expected result.

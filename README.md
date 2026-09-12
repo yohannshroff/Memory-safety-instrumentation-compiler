@@ -7,7 +7,8 @@ level to catch memory-safety violations at run time:
 
 | Violation class | Example |
 |---|---|
-| Array out-of-bounds read / write | `int a[4]; a[4] = x;` |
+| Array out-of-bounds read / write (stack/global array) | `int a[4]; a[4] = x;` |
+| Heap out-of-bounds access (subscript or pointer arithmetic) | `int *p = malloc(16); p[4] = x;` / `*(p + 4) = x;` |
 | Invalid pointer dereference (NULL) | `int *p = 0; *p = 1;` |
 | Use-after-free | `free(p); *p = 1;` |
 | Double free | `free(p); free(p);` |
@@ -86,7 +87,7 @@ ctest --test-dir build --output-on-failure   # runtime unit tests
 | Path | Contents | Owner |
 |---|---|---|
 | `src/` | LLVM pass: `IRScanner` (find ops), `CheckInjector` (insert checks), `MemSafety` (plugin) | Vikas |
-| `runtime/` | C runtime: allocation metadata table + `boundscheck` / `ptrcheck` / `heap_register` / `heap_release` | Yohann |
+| `runtime/` | C runtime: allocation metadata table + `boundscheck` / `heap_boundscheck` / `ptrcheck` / `heap_register` / `heap_release` | Yohann |
 | `driver/` | `memsafec` compiler-driver script | Prajwal |
 | `tests/` | `test_runtime.c` — direct unit tests of the runtime | Prajwal |
 | `benchmarks/` | `safe/` and `unsafe/` C programs + `run_all.sh` harness | Prajwal / Yohann |
@@ -103,10 +104,13 @@ visible rather than silently worked around:
 - **No static "provably in bounds" skip.** Every candidate access is
   instrumented, including ones a compiler could prove safe. Lower run-time
   overhead via static elision is future work.
-- **Bounds checking covers stack/global arrays of statically known length.**
-  Out-of-bounds access via arithmetic on a heap pointer
-  (`p = malloc(...); p[BIG] = x;`) is not yet caught — see
-  `benchmarks/unsafe/09_pointer_arithmetic.c`, marked `XFAIL` in the harness.
+- **Heap bounds checking only covers pointer values that exactly match a
+  live `malloc`/`calloc` result.** `heap_boundscheck` looks the base pointer
+  up in the same allocation table used for free-tracking; an offset computed
+  from a pointer the runtime never registered (e.g. one derived by pointer
+  arithmetic across an `alloca`, or a pointer that arrived from outside the
+  instrumented translation unit) is not checked. No general pointer-provenance
+  / aliasing analysis is attempted.
 - **Single-threaded runtime.** The metadata table has no locking.
 - **Platforms:** developed and tested on x86-64 Linux and arm64 macOS.
 - First violation aborts the process (`abort()`, exit 134); the program does

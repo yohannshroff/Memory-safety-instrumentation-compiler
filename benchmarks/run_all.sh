@@ -36,7 +36,9 @@ expect_for() {
     06_double_free)       echo "UNSAFE|double free" ;;
     07_invalid_free)      echo "UNSAFE|invalid free" ;;
     10_mixed)             echo "UNSAFE|out-of-bounds access" ;;
-    09_pointer_arithmetic) echo "XFAIL|heap pointer-arithmetic bounds not yet tracked" ;;
+    09_pointer_arithmetic) echo "UNSAFE|out-of-bounds access" ;;
+    11_heap_index_oob)    echo "UNSAFE|out-of-bounds access" ;;
+    12_boundary_last_index) echo "SAFE|" ;;
     *)                    echo "" ;;
   esac
 }

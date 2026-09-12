@@ -22,6 +22,11 @@ CheckInjector::CheckInjector(Module &M) : M(M), Ctx(M.getContext()) {
       "boundscheck",
       FunctionType::get(VoidTy, {PtrTy, I64Ty, I64Ty, I64Ty, PtrTy}, false));
 
+  // void heap_boundscheck(ptr base, i64 byte_offset, i64 access_size, ptr loc)
+  HeapBoundsCheckFn = M.getOrInsertFunction(
+      "heap_boundscheck",
+      FunctionType::get(VoidTy, {PtrTy, I64Ty, I64Ty, PtrTy}, false));
+
   // void ptrcheck(ptr p, ptr loc)
   PtrCheckFn = M.getOrInsertFunction(
       "ptrcheck", FunctionType::get(VoidTy, {PtrTy, PtrTy}, false));
@@ -65,6 +70,19 @@ bool CheckInjector::injectArrayAccess(const ArrayAccess &AA) {
                {AA.Base, ConstantInt::get(I64Ty, AA.ElementSize),
                 ConstantInt::get(I64Ty, AA.NumElements), Idx,
                 locString(AA.MemOp)});
+  return true;
+}
+
+bool CheckInjector::injectHeapPtrAccess(const HeapPtrAccess &HA) {
+  IRBuilder<> B(HA.MemOp);
+  Type *I64Ty = B.getInt64Ty();
+
+  Value *Idx = B.CreateSExtOrTrunc(HA.Index, I64Ty, "memsafe.hidx");
+  Value *ByteOffset =
+      B.CreateMul(Idx, ConstantInt::get(I64Ty, HA.ElementSize), "memsafe.hoff");
+  B.CreateCall(HeapBoundsCheckFn,
+               {HA.GepBase, ByteOffset, ConstantInt::get(I64Ty, HA.ElementSize),
+                locString(HA.MemOp)});
   return true;
 }
 

@@ -103,12 +103,17 @@ static void v_double_free(void) {
 
 static void v_oob_high(void) {
   int a[4];
-  boundscheck(a, sizeof(int), 4, 4, "test:oob_high");
+  boundscheck(a, sizeof(int), 4, 4, "test:oob_high"); /* index == len */
 }
 
 static void v_oob_negative(void) {
   int a[4];
   boundscheck(a, sizeof(int), 4, -1, "test:oob_negative");
+}
+
+static void v_oob_empty_array(void) {
+  int a[1];
+  boundscheck(a, sizeof(int), 0, 0, "test:oob_empty"); /* len == 0: no index is valid */
 }
 
 static void v_null_deref(void) { ptrcheck(NULL, "test:null_deref"); }
@@ -118,6 +123,18 @@ static void v_use_after_free(void) {
   heap_register(p, sizeof(int), "test:uaf");
   heap_release(p, "test:uaf");
   ptrcheck(p, "test:uaf"); /* dereference-after-free */
+}
+
+static void v_heap_bounds_past_end(void) {
+  void *p = malloc(16);
+  heap_register(p, 16, "test:heap_oob");
+  heap_boundscheck(p, 12, 8, "test:heap_oob"); /* [12,20) overruns a 16-byte block */
+}
+
+static void v_heap_bounds_negative_offset(void) {
+  void *p = malloc(16);
+  heap_register(p, 16, "test:heap_oob_neg");
+  heap_boundscheck(p, -4, 4, "test:heap_oob_neg");
 }
 
 /* ----------------------------------------------------------------------- */
@@ -171,6 +188,22 @@ int main(void) {
   heap_release(NULL, "test:null_release");
   CHECK(1, "NULL register / release are no-ops");
 
+  {
+    void *p = malloc(16);
+    heap_register(p, 16, "test:heap_bounds_ok");
+    heap_boundscheck(p, 0, 16, "test:heap_bounds_ok");  /* whole block */
+    heap_boundscheck(p, 12, 4, "test:heap_bounds_ok");  /* exact last 4 bytes */
+    heap_release(p, "test:heap_bounds_ok");
+    free(p);
+    CHECK(1, "heap_boundscheck accepts in-range and exact-edge offsets");
+  }
+
+  {
+    int not_heap;
+    heap_boundscheck(&not_heap, 0, sizeof(int), "test:heap_bounds_untracked");
+    CHECK(1, "heap_boundscheck on an untracked base is a silent no-op");
+  }
+
   /* --- violation paths: must abort with the right diagnostic --- */
   CHECK(aborts_with_violation(v_invalid_free, "invalid free"),
         "heap_release on unregistered pointer -> invalid free");
@@ -180,10 +213,17 @@ int main(void) {
         "boundscheck index == len -> out-of-bounds access");
   CHECK(aborts_with_violation(v_oob_negative, "out-of-bounds access"),
         "boundscheck negative index -> out-of-bounds access");
+  CHECK(aborts_with_violation(v_oob_empty_array, "out-of-bounds access"),
+        "boundscheck on a zero-length array -> out-of-bounds access");
   CHECK(aborts_with_violation(v_null_deref, "null dereference"),
         "ptrcheck(NULL) -> null dereference");
   CHECK(aborts_with_violation(v_use_after_free, "use after free"),
         "ptrcheck on freed pointer -> use after free");
+  CHECK(aborts_with_violation(v_heap_bounds_past_end, "out-of-bounds access"),
+        "heap_boundscheck offset+size past allocation -> out-of-bounds access");
+  CHECK(aborts_with_violation(v_heap_bounds_negative_offset,
+                               "out-of-bounds access"),
+        "heap_boundscheck negative offset -> out-of-bounds access");
 
   printf("\n%d tests, %d failures\n", g_tests, g_failures);
   return g_failures == 0 ? 0 : 1;

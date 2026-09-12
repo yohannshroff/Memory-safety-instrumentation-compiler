@@ -96,6 +96,22 @@ void IRScanner::scan(Function &F) {
              DL.getTypeAllocSize(ElemTy).getFixedValue()});
         continue;
       }
+
+      // Not a known-length array: a flat, single-index GEP (`p[i]`,
+      // `*(p + k)`) off some other pointer may be an offset into a live
+      // heap allocation. We can't know its size statically, so check it
+      // dynamically at run time against whatever the runtime's metadata
+      // table has on record for that exact base pointer value - see
+      // heap_boundscheck() in runtime/memsafety_runtime.c. If the base
+      // turns out not to be a tracked allocation, the check is a no-op.
+      if (GEP->getNumIndices() == 1) {
+        Value *Index = GEP->getOperand(GEP->getNumOperands() - 1);
+        uint64_t ElemSize =
+            DL.getTypeAllocSize(GEP->getSourceElementType()).getFixedValue();
+        HeapPtrAccesses.push_back(
+            {&I, GEP->getPointerOperand(), Index, ElemSize});
+      }
+      // Fall through: still also apply the ptrcheck below (null / UAF).
     }
 
     // Otherwise: guard the dereference unless the pointer is obviously a

@@ -160,3 +160,15 @@ void ptrcheck(void *ptr, const char *loc) {
     report_violation("use after free", loc, ptr);
   }
 }
+
+void heap_boundscheck(void *base, long byte_offset, size_t access_size,
+                      const char *loc) {
+  entry_t *e = table_lookup(base);
+  if (e == NULL)
+    return; /* base isn't a tracked allocation - nothing we can assert */
+
+  if (byte_offset < 0 || (size_t)byte_offset + access_size > e->size) {
+    report_violation("out-of-bounds access", loc,
+                      (const char *)base + byte_offset);
+  }
+}
