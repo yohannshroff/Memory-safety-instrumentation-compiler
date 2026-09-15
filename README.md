@@ -114,3 +114,4 @@ visible rather than silently worked around:
 - **Platforms:** developed and tested on x86-64 Linux and arm64 macOS.
 - First violation aborts the process (`abort()`, exit 134); the program does
   not continue past it.
+
