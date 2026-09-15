@@ -3,7 +3,7 @@ int main(void) {
     int *p = malloc(4 * sizeof(int));
     if (!p) return 1;
     int *q = p + 2;
-    *q = 7;                 // valid
+    *q = 7;                 // Valid
     *(p + 4) = 9;           // Out Of Bounds
     free(p);
     return 0;
