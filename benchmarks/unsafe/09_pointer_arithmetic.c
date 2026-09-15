@@ -4,7 +4,7 @@ int main(void) {
     if (!p) return 1;
     int *q = p + 2;
     *q = 7;                 // valid
-    *(p + 4) = 9;           // OOB
+    *(p + 4) = 9;           // Out Of Bounds
     free(p);
     return 0;
 }
