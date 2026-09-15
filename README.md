@@ -108,7 +108,7 @@ visible rather than silently worked around:
   up in the same allocation table used for free-tracking; an offset computed
   from a pointer the runtime never registered (e.g. one derived by pointer
   arithmetic across an `alloca`, or a pointer that arrived from outside the
-  instrumented translation unit) is not checked. No general pointer-provenance
+  instrumented translation unit) is not checked. No general pointer-provenance 
   / aliasing analysis is attempted.
 - **Single-threaded runtime.** The metadata table has no locking.
 - **Platforms:** developed and tested on x86-64 Linux and arm64 macOS.
