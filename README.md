@@ -64,7 +64,6 @@ ctest --test-dir build --output-on-failure   # runtime unit tests
 ```
 
 ## Quick Demo
-
 ```bash
 # A safe program: builds and runs cleanly.
 ./driver/memsafec benchmarks/safe/01_safe_array.c -o /tmp/safe
